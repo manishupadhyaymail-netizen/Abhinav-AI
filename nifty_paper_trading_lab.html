@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nifty Options Paper Trading Lab</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Noto Sans Devanagari",sans-serif;color:#172033;background:#f4f6fb}
+*{box-sizing:border-box}body{margin:0;padding:14px;max-width:980px;margin:auto}
+h1{font-size:1.45rem;margin:6px 0}.sub{color:#536078;font-size:.94rem;line-height:1.5}
+.card{background:white;border:1px solid #e1e6ef;border-radius:14px;padding:14px;margin:12px 0;box-shadow:0 2px 8px #1b2b4510}
+h2{font-size:1.08rem;margin:0 0 10px}.row{display:flex;gap:9px;flex-wrap:wrap;align-items:end}
+label{display:block;font-size:.85rem;color:#48546a;margin-bottom:5px}
+input,select,button{font:inherit;border:1px solid #cbd3e1;border-radius:9px;padding:10px;background:#fff;max-width:100%}
+input[type=file]{width:100%}button{background:#173b72;color:white;border:0;font-weight:600;cursor:pointer}
+button.secondary{background:#edf2fa;color:#173b72;border:1px solid #cbd5e4}
+.field{flex:1;min-width:125px}.pill{display:inline-block;border-radius:99px;padding:5px 10px;font-weight:700;font-size:.85rem;background:#edf2fa}
+.good{color:#087443}.bad{color:#b42318}.muted{color:#667085}
+table{border-collapse:collapse;width:100%;font-size:.9rem}td,th{text-align:left;border-bottom:1px solid #edf0f5;padding:8px 5px}
+.small{font-size:.82rem;line-height:1.5}.metric{font-size:1.35rem;font-weight:750}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px}
+.metricbox{background:#f6f8fc;border-radius:10px;padding:10px}
+#signals li{margin:7px 0}.notice{background:#fff8e8;border:1px solid #f1dfb8;padding:10px;border-radius:10px;line-height:1.5}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<h1>Nifty Options — Paper Trading Lab</h1>
+<div class="sub">शुरुआती सिम्युलेटर • केवल वर्चुअल ट्रेड • Zerodha से कनेक्ट नहीं • मोबाइल-फ्रेंडली</div>
+
+<div class="card notice small"><b>महत्वपूर्ण:</b> यह पहला प्रोटोटाइप है, लाइव ट्रेडिंग बॉट नहीं। यह Nifty के OHLCV कैंडल डेटा से संकेत निकालता है। Option premium अपने-आप नहीं लाता; Paper trade में premium आपको डेटा देखकर भरना होगा। परिणाम रणनीति की लाभप्रदता का प्रमाण नहीं हैं।</div>
+
+<div class="card">
+<h2>1. Nifty कैंडल डेटा डालें</h2>
+<p class="small">CSV फ़ाइल में ये कॉलम होने चाहिए: <b>timestamp, open, high, low, close, volume</b>। समय 5-minute candle का रखें। कम-से-कम 40–50 candles बेहतर हैं।</p>
+<div class="row"><div class="field"><label>CSV फ़ाइल चुनें</label><input id="file" type="file" accept=".csv,text/csv"></div><button id="load">CSV पढ़ें और विश्लेषण करें</button></div>
+<p class="small muted">उदाहरण: 2026-11-06 09:15, 25100, 25130, 25090, 25120, 123456</p>
+<div class="row"><div class="field"><label>या एक कैंडल मैन्युअली जोड़ें</label><input id="ts" placeholder="2026-11-06 10:15"></div><div class="field"><label>Open</label><input id="op" type="number" step="0.05"></div><div class="field"><label>High</label><input id="hi" type="number" step="0.05"></div><div class="field"><label>Low</label><input id="lo" type="number" step="0.05"></div><div class="field"><label>Close</label><input id="cl" type="number" step="0.05"></div><div class="field"><label>Volume</label><input id="vol" type="number"></div><button class="secondary" id="add">कैंडल जोड़ें</button></div>
+<div id="dataStatus" class="small muted">अभी कोई डेटा लोड नहीं है।</div>
+</div>
+
+<div class="card">
+<h2>2. सात रणनीतियों का परिणाम</h2>
+<div class="grid">
+<div class="metricbox"><div class="small muted">कुल कैंडल</div><div class="metric" id="n">0</div></div>
+<div class="metricbox"><div class="small muted">सामूहिक फैसला</div><div class="metric" id="decision">NO DATA</div></div>
+<div class="metricbox"><div class="small muted">CALL संकेत</div><div class="metric" id="calls">0</div></div>
+<div class="metricbox"><div class="small muted">PUT संकेत</div><div class="metric" id="puts">0</div></div>
+</div>
+<ul id="signals" class="small"><li>डेटा लोड करने के बाद रणनीतियों के संकेत दिखेंगे।</li></ul>
+<div class="notice small">सिग्नल नियम: कम-से-कम 2 रणनीतियाँ एक ही दिशा में हों और विपरीत दिशा का कोई संकेत न हो, तभी संभावित दिशा दिखाई जाएगी। अन्यथा NO TRADE। यह एक शुरुआती नियम है, अंतिम/प्रमाणित नियम नहीं।</div>
+</div>
+
+<div class="card">
+<h2>3. वर्चुअल Paper Trade दर्ज करें</h2>
+<p class="small">सामूहिक फैसला CALL/PUT होने पर ही अभ्यास करें। संबंधित विकल्प का वास्तविक bid/ask देखकर premium भरें। अभी यह ऑर्डर कहीं भेजता नहीं है।</p>
+<div class="row">
+<div class="field"><label>Trade दिशा</label><select id="side"><option>CALL</option><option>PUT</option></select></div>
+<div class="field"><label>Strike (जैसे 25100)</label><input id="strike" type="number" placeholder="25100"></div>
+<div class="field"><label>Expiry</label><input id="expiry" type="date"></div>
+<div class="field"><label>खरीद premium (₹)</label><input id="entry" type="number" step="0.05" placeholder="120"></div>
+<div class="field"><label>Quantity (units)</label><input id="qty" type="number" value="1" min="1"></div>
+<div class="field"><label>अनुमानित कुल लागत/charges (₹)</label><input id="cost" type="number" value="0" min="0"></div>
+<button id="openTrade">वर्चुअल BUY दर्ज करें</button>
+</div>
+<div id="openStatus" class="small muted">कोई खुला ट्रेड नहीं।</div>
+<div class="row">
+<div class="field"><label>बिक्री premium (₹)</label><input id="exit" type="number" step="0.05" placeholder="135"></div>
+<button id="closeTrade" class="secondary">वर्चुअल SELL / बंद करें</button>
+</div>
+<div id="pnl" class="small"></div>
+</div>
+
+<div class="card">
+<h2>4. ट्रेड हिस्ट्री</h2>
+<div class="grid"><div class="metricbox"><div class="small muted">बंद ट्रेड</div><div class="metric" id="closedN">0</div></div><div class="metricbox"><div class="small muted">कुल वर्चुअल P&L</div><div class="metric" id="totalPnl">₹0</div></div><div class="metricbox"><div class="small muted">जीत प्रतिशत</div><div class="metric" id="winrate">—</div></div></div>
+<div style="overflow-x:auto"><table><thead><tr><th>दिशा / Strike</th><th>Buy</th><th>Sell</th><th>Qty</th><th>P&L</th></tr></thead><tbody id="history"><tr><td colspan="5" class="muted">अभी कोई ट्रेड नहीं।</td></tr></tbody></table></div>
+<button class="secondary" id="reset" style="margin-top:10px">सारा स्थानीय डेटा मिटाएँ</button>
+</div>
+<div class="card small">
+<h2>5. रणनीतियाँ और सीमाएँ</h2>
+<table><tr><th>रणनीति</th><th>इस प्रोटोटाइप में नियम</th></tr>
+<tr><td>EMA crossover</td><td>9 EMA और 21 EMA का नया crossover</td></tr>
+<tr><td>ORB</td><td>पहले 15 मिनट के high/low का close से breakout</td></tr>
+<tr><td>VWAP</td><td>VWAP के ऊपर/नीचे pullback-turn confirmation का सरल अनुमान</td></tr>
+<tr><td>RSI</td><td>14 RSI का 30/70 स्तर वापस पार करना</td></tr>
+<tr><td>ADX</td><td>ADX &gt; 25 और +DI/-DI दिशा</td></tr>
+<tr><td>Bollinger</td><td>कम ADX में band से reversal confirmation</td></tr>
+<tr><td>No Trade</td><td>कम संकेत, विरोधी संकेत या अपर्याप्त डेटा = कोई ट्रेड नहीं</td></tr></table>
+<p>यह नियम-आधारित शुरुआती नमूना है। VWAP, ADX और ORB के लिए सही timestamp/session data जरूरी है। यह broker-grade backtester नहीं है; slippage, bid-ask spread, expiry gamma, option liquidity और सभी शुल्कों का पूरा मॉडल अभी शामिल नहीं है।</p>
+</div>
+<script>
+let candles=[], open=null, trades=[];
+const $=id=>document.getElementById(id);
+function num(v){return Number(v)}
+function parseCSV(t){
+ const lines=t.trim().split(/\r?\n/); if(lines.length<2) throw Error("CSV में header और data rows दोनों होने चाहिए।");
+ const head=lines[0].split(",").map(x=>x.trim().toLowerCase());
+ const idx=k=>head.indexOf(k);
+ for(const k of ["timestamp","open","high","low","close","volume"]) if(idx(k)<0) throw Error("CSV में "+k+" कॉलम नहीं मिला।");
+ return lines.slice(1).filter(x=>x.trim()).map(line=>{let a=line.split(",");return {t:a[idx("timestamp")],o:num(a[idx("open")]),h:num(a[idx("high")]),l:num(a[idx("low")]),c:num(a[idx("close")]),v:num(a[idx("volume")])}}).filter(x=>[x.o,x.h,x.l,x.c,x.v].every(Number.isFinite)).sort((a,b)=>String(a.t).localeCompare(String(b.t)));
+}
+function ema(arr,p){let out=Array(arr.length).fill(null),k=2/(p+1),s=null;arr.forEach((x,i)=>{s=s===null?x:x*k+s*(1-k);out[i]=s});return out}
+function rsi(arr,p=14){let out=Array(arr.length).fill(null);for(let i=p;i<arr.length;i++){let g=0,l=0;for(let j=i-p+1;j<=i;j++){let d=arr[j]-arr[j-1];if(d>0)g+=d;else l-=d}let rs=l===0?100:g/l;out[i]=100-100/(1+rs)}return out}
+function adxCalc(d,p=14){
+ let tr=[], plus=[], minus=[];for(let i=0;i<d.length;i++){if(i===0){tr.push(d[i].h-d[i].l);plus.push(0);minus.push(0);continue}
+ let up=d[i].h-d[i-1].h, dn=d[i-1].l-d[i].l;
+ plus.push(up>dn&&up>0?up:0);minus.push(dn>up&&dn>0?dn:0);
+ tr.push(Math.max(d[i].h-d[i].l,Math.abs(d[i].h-d[i-1].c),Math.abs(d[i].l-d[i-1].c)));
+ }
+ let dx=Array(d.length).fill(null),pdi=Array(d.length).fill(null),mdi=Array(d.length).fill(null),adx=Array(d.length).fill(null);
+ for(let i=p;i<d.length;i++){let T=0,P=0,M=0;for(let j=i-p+1;j<=i;j++){T+=tr[j];P+=plus[j];M+=minus[j]}pdi[i]=100*P/(T||1);mdi[i]=100*M/(T||1);dx[i]=100*Math.abs(pdi[i]-mdi[i])/((pdi[i]+mdi[i])||1)}
+ for(let i=2*p-1;i<d.length;i++){let vals=dx.slice(i-p+1,i+1).filter(Number.isFinite);if(vals.length===p)adx[i]=vals.reduce((a,b)=>a+b,0)/p}
+ return {adx,pdi,mdi};
+}
+function analyze(){
+ let d=candles, n=d.length; $("n").textContent=n;
+ if(n<35){$("decision").textContent="NO TRADE";$("signals").innerHTML="<li>कम-से-कम 35 candles दें; बेहतर विश्लेषण के लिए अधिक इतिहास दें।</li>";return}
+ let c=d.map(x=>x.c), e9=ema(c,9),e21=ema(c,21),rr=rsi(c), ad=adxCalc(d),i=n-1,prev=i-1;
+ let vwapNum=0,vwapDen=0;for(let j=0;j<n;j++){let tp=(d[j].h+d[j].l+d[j].c)/3;vwapNum+=tp*d[j].v;vwapDen+=d[j].v}
+ let vw=vwapNum/(vwapDen||1), mean=c.slice(-20).reduce((a,b)=>a+b,0)/20,sd=Math.sqrt(c.slice(-20).reduce((a,b)=>a+(b-mean)**2,0)/20),upper=mean+2*sd,lower=mean-2*sd;
+ let sig=[];
+ sig.push(["EMA crossover",e9[prev]<=e21[prev]&&e9[i]>e21[i]?"CALL":e9[prev]>=e21[prev]&&e9[i]<e21[i]?"PUT":"—"]);
+ let day=d[i].t.slice(0,10), session=d.filter(x=>x.t.slice(0,10)===day), first=session.slice(0,3), orbH=first.length===3?Math.max(...first.map(x=>x.h)):null,orbL=first.length===3?Math.min(...first.map(x=>x.l)):null;
+ sig.push(["Opening Range Breakout",orbH!==null&&c[i]>orbH?"CALL":orbL!==null&&c[i]<orbL?"PUT":"—"]);
+ sig.push(["VWAP",c[i]>vw&&d[prev].c<=vw&&c[i]>d[i].o?"CALL":c[i]<vw&&d[prev].c>=vw&&c[i]<d[i].o?"PUT":"—"]);
+ sig.push(["RSI reversal",rr[prev]!==null&&rr[prev]<30&&rr[i]>=30?"CALL":rr[prev]!==null&&rr[prev]>70&&rr[i]<=70?"PUT":"—"]);
+ sig.push(["ADX trend",ad.adx[i]>25&&ad.pdi[i]>ad.mdi[i]&&c[i]>d[i].o?"CALL":ad.adx[i]>25&&ad.mdi[i]>ad.pdi[i]&&c[i]<d[i].o?"PUT":"—"]);
+ sig.push(["Bollinger sideways",ad.adx[i]<20&&d[i].l<=lower&&c[i]>d[i].o?"CALL":ad.adx[i]<20&&d[i].h>=upper&&c[i]<d[i].o?"PUT":"—"]);
+ let calls=sig.filter(x=>x[1]==="CALL").length,puts=sig.filter(x=>x[1]==="PUT").length;
+ let decision=(calls>=2&&puts===0)?"CALL":(puts>=2&&calls===0)?"PUT":"NO TRADE";
+ $("calls").textContent=calls;$("puts").textContent=puts;$("decision").textContent=decision;
+ $("decision").style.color=decision==="CALL"?"#087443":decision==="PUT"?"#b42318":"#475467";
+ $("signals").innerHTML=sig.map(x=>"<li><b>"+x[0]+":</b> "+x[1]+"</li>").join("")+
+ "<li><b>VWAP (loaded data):</b> "+vw.toFixed(2)+"</li><li><b>ADX (approx):</b> "+(Number.isFinite(ad.adx[i])?ad.adx[i].toFixed(1):"पर्याप्त डेटा नहीं")+"</li>";
+ $("dataStatus").textContent=n+" candles loaded • latest: "+d[i].t+" • आखिरी close: "+c[i];
+}
+$("load").onclick=async()=>{try{let f=$("file").files[0];if(!f)throw Error("पहले CSV फ़ाइल चुनें।");candles=parseCSV(await f.text());analyze()}catch(e){alert(e.message)}};
+$("add").onclick=()=>{let x={t:$("ts").value,o:num($("op").value),h:num($("hi").value),l:num($("lo").value),c:num($("cl").value),v:num($("vol").value)};if(!x.t||![x.o,x.h,x.l,x.c,x.v].every(Number.isFinite)){alert("सभी candle fields भरें।");return}candles.push(x);candles.sort((a,b)=>String(a.t).localeCompare(String(b.t)));analyze()};
+function render(){let closed=trades.filter(t=>t.pnl!==null),total=closed.reduce((s,t)=>s+t.pnl,0),wins=closed.filter(t=>t.pnl>0).length;$("closedN").textContent=closed.length;$("totalPnl").textContent="₹"+total.toFixed(2);$("totalPnl").className="metric "+(total>=0?"good":"bad");$("winrate").textContent=closed.length?(wins/closed.length*100).toFixed(1)+"%":"—";$("history").innerHTML=closed.length?closed.slice().reverse().map(t=>`<tr><td>${t.side} / ${t.strike||"—"}</td><td>₹${t.entry}</td><td>₹${t.exit}</td><td>${t.qty}</td><td class="${t.pnl>=0?"good":"bad"}">₹${t.pnl.toFixed(2)}</td></tr>`).join(""):'<tr><td colspan="5" class="muted">अभी कोई बंद ट्रेड नहीं।</td></tr>'}
+$("openTrade").onclick=()=>{if(open){alert("पहले खुला ट्रेड बंद करें।");return}let entry=num($("entry").value),qty=num($("qty").value),cost=num($("cost").value);if(!(entry>0&&qty>0)){alert("सही premium और quantity भरें।");return}open={side:$("side").value,strike:$("strike").value,expiry:$("expiry").value,entry,qty,cost};$("openStatus").textContent="खुला वर्चुअल "+open.side+" • Strike "+(open.strike||"—")+" • Entry ₹"+entry+" • Qty "+qty;$("pnl").textContent="अभी P&L तय नहीं होगा। बंद करते समय exit premium भरें।"};
+$("closeTrade").onclick=()=>{if(!open){alert("कोई खुला ट्रेड नहीं है।");return}let exit=num($("exit").value);if(!(exit>=0)){alert("बिक्री premium भरें।");return}let pnl=(exit-open.entry)*open.qty-open.cost;trades.push({...open,exit,pnl});open=null;$("openStatus").textContent="कोई खुला ट्रेड नहीं।";$("pnl").textContent="इस ट्रेड का वर्चुअल P&L: ₹"+pnl.toFixed(2)+" (दर्ज charges घटाकर)।";$("exit").value="";render()};
+$("reset").onclick=()=>{if(confirm("क्या आप सभी candles और trade history मिटाना चाहते हैं?")){candles=[];open=null;trades=[];$("n").textContent=0;$("decision").textContent="NO DATA";$("calls").textContent=0;$("puts").textContent=0;$("signals").innerHTML="<li>डेटा लोड करने के बाद रणनीतियों के संकेत दिखेंगे।</li>";$("dataStatus").textContent="अभी कोई डेटा लोड नहीं है।";$("openStatus").textContent="कोई खुला ट्रेड नहीं।";$("pnl").textContent="";render()}};
+</script>
+</body></html>

@@ -1,0 +1,16 @@
+{
+  "name": "abhinav-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Abhinav AI learning companion for Class 2",
+  "scripts": {
+    "build": "node -e \"const fs=require('fs'); if(!fs.existsSync('www/index.html')) process.exit(1)\""
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/core": "^6.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0"
+  }
+}

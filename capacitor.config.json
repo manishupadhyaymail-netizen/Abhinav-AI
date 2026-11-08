@@ -1,0 +1,6 @@
+{
+  "appId": "com.abhinav.ai",
+  "appName": "Abhinav AI",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
